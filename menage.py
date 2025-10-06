@@ -3,59 +3,69 @@ import pandas as pd
 import datetime as dt
 import math
 from streamlit import column_config as cc
+import html as py_html  # pour échapper le texte quand on rend du HTML brut
 
 # ============================================================
-# MODE COMPAT iOS : bypasse TOUT rendu Markdown/GFM y compris labels
+# MODE COMPAT iOS : bypasse TOUT rendu Markdown/GFM & labels
 # ============================================================
 st.sidebar.checkbox("Mode compat iOS (désactiver Markdown/labels)", key="compat_ios", value=False)
 
-def md(text: str):
-    """Affiche un texte: Markdown normal ou texte brut si compat iOS."""
-    if st.session_state.get("compat_ios"):
-        st.text(text)
+def plain_text(s: str):
+    """Affiche du texte brut sans passer par Markdown/GFM."""
+    safe = py_html.escape(s)
+    # st.html existe sur Streamlit >= 1.36 ; sinon fallback en unsafe_allow_html
+    if hasattr(st, "html"):
+        st.html(f"<div>{safe}</div>")
     else:
-        st.markdown(text)
+        st.markdown(f"<div>{safe}</div>", unsafe_allow_html=True)
+
+def md(s: str):
+    """Markdown normal, mais bascule en texte brut si compat iOS activé."""
+    if st.session_state.get("compat_ios"):
+        plain_text(s)
+    else:
+        st.markdown(s)
 
 def ui_success(msg: str):
     if st.session_state.get("compat_ios"):
-        st.write("✅ " + msg)
+        plain_text("✅ " + msg)
     else:
         st.success(msg)
 
 def ui_info(msg: str):
     if st.session_state.get("compat_ios"):
-        st.write("ℹ️ " + msg)
+        plain_text("ℹ️ " + msg)
     else:
         st.info(msg)
 
 def ui_warning(msg: str):
     if st.session_state.get("compat_ios"):
-        st.write("⚠️ " + msg)
+        plain_text("⚠️ " + msg)
     else:
         st.warning(msg)
 
 def ui_error(msg: str):
     if st.session_state.get("compat_ios"):
-        st.write("❌ " + msg)
+        plain_text("❌ " + msg)
     else:
         st.error(msg)
 
 # -------- Wrappers de widgets sans labels (compat iOS) --------
 def sb_selectbox(label_text: str, options, key=None, **kwargs):
     if st.session_state.get("compat_ios"):
-        st.text(label_text)  # texte brut au-dessus
-        return st.selectbox("", options, key=key, **kwargs)  # label vide
+        plain_text(label_text)                               # label affiché séparément (HTML brut)
+        return st.selectbox("\u00A0", options, key=key, **kwargs)  # label du widget = espace insécable
     else:
         return st.selectbox(label_text, options, key=key, **kwargs)
 
 def sb_button(label_text: str, key=None, **kwargs):
-    """Affiche un bouton sans label en compat iOS + le texte juste à droite."""
+    """Bouton dont le label est rendu à côté (HTML brut) en mode compat."""
     if st.session_state.get("compat_ios"):
-        c1, c2 = st.columns([1, 5])
+        c1, c2 = st.columns([1, 6])
         with c1:
-            clicked = st.button(" ", key=key, **kwargs)  # label vide
+            clicked = st.button("\u00A0", key=key, **kwargs)  # bouton visuellement “vide”
         with c2:
-            st.text(label_text)
+            plain_text(label_text)                            # texte à côté
         return clicked
     else:
         return st.button(label_text, key=key, **kwargs)
@@ -63,7 +73,7 @@ def sb_button(label_text: str, key=None, **kwargs):
 # ============================================================
 # CONSTANTES / ÉTAT
 # ============================================================
-title = "Ajouter une tâche"
+TITLE = "Ajouter une tâche"
 
 if 'taches' not in st.session_state:
     st.session_state.taches = ["test"]
@@ -94,6 +104,7 @@ if 'pointsGagnesDf' not in st.session_state:
 if 'laveurDf' not in st.session_state:
     st.session_state.laveurDf = []
 
+# DATES D'ÉCHÉANCE (une date par tâche)
 if 'due_dates' not in st.session_state:
     today0 = pd.Timestamp.today().normalize()
     st.session_state.due_dates = [(today0 + pd.Timedelta(days=d)).date()
@@ -105,9 +116,11 @@ if 'due_dates' not in st.session_state:
 md("# 1100 Gilford clean up crew")
 
 # ============================================================
-# POPUP AJOUTER UNE TÂCHE
+# POPUP AJOUTER UNE TÂCHE (title neutre en compat iOS)
 # ============================================================
-@st.dialog(title)
+dialog_title = " " if st.session_state.get("compat_ios") else TITLE
+
+@st.dialog(dialog_title)
 def popup():
     nomTache = st.text_input("Nom de la tâche")
     echeanceTache = st.number_input("Échéance (en jours)", min_value=0, max_value=30, value=1, step=1)
@@ -130,6 +143,7 @@ def popup():
 
     if validerBouton:
         today = pd.Timestamp.today().normalize().date()
+        # Calcul de la date due et de l'échéance visible
         if nbRecurrence > 0 and start_date is not None:
             due = start_date
             if due < today:
@@ -142,6 +156,7 @@ def popup():
             due_date = (today + dt.timedelta(days=int(echeanceTache)))
             echeance_effective = int(echeanceTache)
 
+        # MAJ état
         st.session_state.taches.append(nomTache)
         st.session_state.echeances.append(int(echeance_effective))
         st.session_state.points.append(int(nbPointsTache))
@@ -325,9 +340,8 @@ def render_page_leaderboard():
 # ROUTAGE : tabs normaux (desktop) vs sélecteur (compat iOS)
 # ============================================================
 if st.session_state.get("compat_ios"):
-    # Remplace les tabs par un sélecteur sans label (pas de Markdown)
-    md("## Navigation")
-    page = st.selectbox("", ["Tâches", "Historique", "Leaderboard"], index=0, key="page_select")
+    plain_text("## Navigation")
+    page = st.selectbox("\u00A0", ["Tâches", "Historique", "Leaderboard"], index=0, key="page_select")
     if page == "Tâches":
         render_page_taches()
     elif page == "Historique":
@@ -335,7 +349,6 @@ if st.session_state.get("compat_ios"):
     else:
         render_page_leaderboard()
 else:
-    # Tabs classiques
     tab1, tab2, tab3 = st.tabs(["Tâches", "Historique", "Leaderboard"])
     with tab1:
         render_page_taches()
