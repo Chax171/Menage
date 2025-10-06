@@ -144,7 +144,7 @@ def undo_history_rows(conn, lock, ids):
 # =========================
 # UI / APP
 # =========================
-st.set_page_config(page_title="1100 Gilford clean up crew", page_icon="🧹", layout="wide")
+st.set_page_config(page_title="1100 Gilford clean up gang", page_icon="🧹", layout="wide")
 
 conn, lock = get_db()
 
