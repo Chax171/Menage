@@ -49,28 +49,35 @@ def sb_selectbox(label_text: str, options, key=None, **kwargs):
 
 def sb_action(label_text: str, key: str, **kwargs) -> bool:
     """
-    Compat iOS: remplace un bouton par un toggle sans label + texte brut à côté.
-    Retourne True exactement une fois au clic.
+    Compat iOS : remplace un bouton par un checkbox sans label.
+    - On n'écrit JAMAIS dans st.session_state[f"{key}__cb"].
+    - On déclenche l'action une seule fois par coche via un flag __fired.
     """
     if st.session_state.get("compat_ios"):
         c1, c2 = st.columns([1, 6])
-        clicked = False
         with c1:
-            # toggle sans label visible
-            toggled = st.toggle("\u00A0", value=False, key=f"{key}__tgl")
+            pressed = st.checkbox("\u00A0", key=f"{key}__cb")  # label visuel vide
         with c2:
             plain_text(label_text)
-        if toggled:
-            # réarme le toggle et signale le 'clic'
-            st.session_state[f"{key}__tgl"] = False
-            clicked = True
-        return clicked
+
+        fired_key = f"{key}__fired"
+        fired_before = st.session_state.get(fired_key, False)
+
+        if pressed and not fired_before:
+            # première fois qu'on voit la coche => "clic"
+            st.session_state[fired_key] = True
+            return True
+        elif not pressed and fired_before:
+            # l'utilisateur a décoché : on réarme le "bouton"
+            st.session_state[fired_key] = False
+        return False
     else:
-        # mode normal : vrai bouton
+        # mode normal: vrai bouton Streamlit
         return st.button(label_text, key=key, **kwargs)
 
-# Rétro-compat : si ton code appelle encore sb_button(...), on le mappe vers sb_action(...)
+# rétro-compat (si ton code appelle sb_button)
 sb_button = sb_action
+
 
 
 def sb_text_input(label_text: str, key=None, **kwargs):
