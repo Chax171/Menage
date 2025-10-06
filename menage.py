@@ -47,16 +47,31 @@ def sb_selectbox(label_text: str, options, key=None, **kwargs):
     else:
         return st.selectbox(label_text, options, key=key, **kwargs)
 
-def sb_button(label_text: str, key=None, **kwargs):
+def sb_action(label_text: str, key: str, **kwargs) -> bool:
+    """
+    Compat iOS: remplace un bouton par un toggle sans label + texte brut à côté.
+    Retourne True exactement une fois au clic.
+    """
     if st.session_state.get("compat_ios"):
         c1, c2 = st.columns([1, 6])
+        clicked = False
         with c1:
-            clicked = st.button("\u00A0", key=key, **kwargs)
+            # toggle sans label visible
+            toggled = st.toggle("\u00A0", value=False, key=f"{key}__tgl")
         with c2:
             plain_text(label_text)
+        if toggled:
+            # réarme le toggle et signale le 'clic'
+            st.session_state[f"{key}__tgl"] = False
+            clicked = True
         return clicked
     else:
+        # mode normal : vrai bouton
         return st.button(label_text, key=key, **kwargs)
+
+# Rétro-compat : si ton code appelle encore sb_button(...), on le mappe vers sb_action(...)
+sb_button = sb_action
+
 
 def sb_text_input(label_text: str, key=None, **kwargs):
     if st.session_state.get("compat_ios"):
