@@ -2,20 +2,31 @@ import streamlit as st
 import pandas as pd
 import datetime as dt
 import math
+from streamlit import column_config as cc
 
+# ----------------------------
+# Mode compat iOS (désactive Markdown côté client)
+# ----------------------------
+st.sidebar.checkbox("Mode compat iOS (désactiver Markdown)", key="compat_ios", value=False)
+
+def md(text: str):
+    """Affiche un texte: Markdown normal ou fallback sans Markdown si compat_ios."""
+    if st.session_state.get("compat_ios"):
+        st.text(text)
+    else:
+        st.markdown(text)
 
 #--------------------------------------------------------------
-#CONSTANTES
-#-------------------------------------------------------------
-
+# CONSTANTES
+#--------------------------------------------------------------
 title = "Ajouter une tâche"
 
 #--------------------------------------------------------------
-#Variables stockées dans la session
+# Variables stockées dans la session
 #--------------------------------------------------------------
 if 'taches' not in st.session_state:
     st.session_state.taches = ["test"]
-if 'echeances' not in st.session_state:  
+if 'echeances' not in st.session_state:
     st.session_state.echeances = [0]
 if 'points' not in st.session_state:
     st.session_state.points = [0]
@@ -24,17 +35,17 @@ if 'status' not in st.session_state:
 if 'recurrences' not in st.session_state:
     st.session_state.recurrences = [0]
 
-#POINTS
+# POINTS
 if 'Colita_points' not in st.session_state:
     st.session_state.Colita_points = 0
 if 'Xav_points' not in st.session_state:
     st.session_state.Xav_points = 0
 if 'Rosalia_points' not in st.session_state:
     st.session_state.Rosalia_points = 0
-if 'Chin_points' not in st.session_state: 
+if 'Chin_points' not in st.session_state:
     st.session_state.Chin_points = 0
 
-#HISTORIQUE variables
+# HISTORIQUE variables
 if 'historiqueDf' not in st.session_state:
     st.session_state.historiqueDf = []
 if 'dateDf' not in st.session_state:
@@ -48,31 +59,34 @@ if 'supprimerDf' not in st.session_state:
 
 # DATES D'ÉCHÉANCE (une date par tâche)
 if 'due_dates' not in st.session_state:
-    # s'il y a déjà des tâches/echeances, on calcule les dates à partir d'aujourd'hui
-    today = pd.Timestamp.today().normalize()
+    today0 = pd.Timestamp.today().normalize()
     st.session_state.due_dates = [
-        (today + pd.Timedelta(days=d)).date() for d in st.session_state['echeances']
+        (today0 + pd.Timedelta(days=d)).date() for d in st.session_state['echeances']
     ]
 
+#--------------------------------------------------------------
+# TITRE DE LA PAGE
+#--------------------------------------------------------------
+md("# 1100 Gilford clean up crew")
 
-#TITRE DE LA PAGE
-st.header("1100 Gilford clean up crew")
+#--------------------------------------------------------------
+# TABS
+#--------------------------------------------------------------
+tab1, tab2, tab3 = st.tabs(["Tâches", "Historique", "Leaderboard"])
 
+#--------------------------------------------------------------
+# IDENTIFICATION
+#--------------------------------------------------------------
+choixLaveur = tab1.selectbox("Qui es-tu ?", ["Xav", "Rosalia", "Colita", "Chin"])
 
-#TABS
-tab1, tab2, tab3= st.tabs(["Tâches", "Historique", "Leaderboard"])
+#--------------------------------------------------------------
+# BOUTON AJOUTER UNE TÂCHE
+#--------------------------------------------------------------
+ajouterTacheBouton = tab1.button("Ajouter une tâche", type="primary")
 
-
-#IDENTIFIATION
-choixLaveur = tab1.selectbox("Qui es-tu?",
- ["Xav", "Rosalia", "Colita", "Chin"])
-
-
-#BOUTON AJOUTER UNE TACHE
-ajouterTacheBouton = tab1.button("Ajouter une tâche",
-    type = "primary")
-
-#POPUP AJOUTER UNE TACHE
+#--------------------------------------------------------------
+# POPUP AJOUTER UNE TÂCHE (avec date de départ pour récurrence)
+#--------------------------------------------------------------
 @st.dialog(title)
 def popup():
     nomTache = st.text_input("Nom de la tâche")
@@ -82,11 +96,10 @@ def popup():
     recurrence = st.checkbox("Récurrence")
     if recurrence:
         nbRecurrence = st.number_input("Récurrence (en jours)", min_value=1, max_value=30, value=7, step=1)
-        # calendrier : date de départ (première occurrence)
         today_date = pd.Timestamp.today().normalize().date()
         start_date = st.date_input(
             "Date de départ (première occurrence)",
-            value=today_date,  # tu peux mettre un jeudi par défaut si tu veux
+            value=today_date,
             format="DD/MM/YYYY"
         )
     else:
@@ -104,22 +117,20 @@ def popup():
 
         # Calcul de la date due et de l'échéance visible
         if nbRecurrence > 0 and start_date is not None:
-            # première occurrence = start_date, mais si elle est passée, on pousse par pas de nbRecurrence
             due = start_date
             if due < today:
                 delta = (today - due).days
                 steps = math.ceil(delta / nbRecurrence)
                 due = due + dt.timedelta(days=steps * nbRecurrence)
             due_date = due
-            echeance_effective = (due_date - today).days  # pour remplir la colonne interne "Échéance (jours)"
+            echeance_effective = (due_date - today).days
         else:
-            # tâche non récurrente : due = aujourd'hui + echeanceTache jours
             due_date = (today + dt.timedelta(days=int(echeanceTache)))
             echeance_effective = int(echeanceTache)
 
         # MAJ état
         st.session_state.taches.append(nomTache)
-        st.session_state.echeances.append(int(echeance_effective))   # interne, peut être masquée à l’écran
+        st.session_state.echeances.append(int(echeance_effective))
         st.session_state.points.append(int(nbPointsTache))
         st.session_state.status.append(False)
         st.session_state.recurrences.append(int(nbRecurrence))
@@ -128,15 +139,12 @@ def popup():
         st.success("Tâche ajoutée !")
         st.rerun()
 
-
-
-    
 if ajouterTacheBouton:
     popup()
 
-
-
-# --- DATAFRAME DES TÂCHES TRIÉ PAR URGENCE ---
+#--------------------------------------------------------------
+# TABLEAU DES TÂCHES (tri par urgence) + colonne Supprimer
+#--------------------------------------------------------------
 today = pd.Timestamp.today().normalize()
 
 taches = pd.DataFrame({
@@ -148,13 +156,10 @@ taches = pd.DataFrame({
     'Récurrence (jours)': st.session_state['recurrences']
 })
 
-# Jours restants = date_due - aujourd'hui
 taches['Jours restants'] = (pd.to_datetime(taches['Date due']) - today).dt.days
-
-# Tri: plus urgent en haut
 taches = taches.sort_values(['Jours restants', 'Points'], ascending=[True, False]).reset_index(drop=True)
 
-# Colonne UI "Supprimer" (bool pur, pas de NaN)
+# Colonne UI "Supprimer" (bool pur)
 taches['Supprimer'] = pd.Series([False] * len(taches), dtype=bool)
 
 # Colonnes visibles et ordre d’affichage
@@ -166,24 +171,37 @@ tableauTaches = tab1.data_editor(
     height="auto",
     hide_index=True,
     num_rows="fixed",
-    disabled=['Tâches', 'Échéance (jours)', 'Points', 'Récurrence (jours)', 'Date due', 'Jours restants'],
+    # On désactive les colonnes de données, pas "Statut" ni "Supprimer"
+    disabled=["Tâches", "Jours restants", "Récurrence (jours)", "Points"],
     column_config={
-        "Statut": st.column_config.CheckboxColumn("Statut", help="Coche si la tâche est faite"),
-        "Supprimer": st.column_config.CheckboxColumn("Supprimer", help="Cocher pour supprimer définitivement la tâche"),
+        # Texte brut (pas de Markdown/HTML)
+        "Tâches": cc.TextColumn("Tâches", disable_html_escaping=True),
+        "Jours restants": cc.NumberColumn("Jours restants"),
+        "Récurrence (jours)": cc.NumberColumn("Récurrence (jours)"),
+        "Points": cc.NumberColumn("Points"),
+        # Checkboxes éditables
+        "Statut": cc.CheckboxColumn("Statut", help="Coche si la tâche est faite"),
+        "Supprimer": cc.CheckboxColumn("Supprimer", help="Cocher pour supprimer définitivement la tâche"),
     },
-    key="editor_taches")
+    key="editor_taches"
+)
 
-
-
-
-#DATAFRAME DES POINTS
+#--------------------------------------------------------------
+# DATAFRAME DES POINTS (pour le leaderboard)
+#--------------------------------------------------------------
 points = pd.DataFrame({
-    'Points': [st.session_state.Colita_points, st.session_state.Xav_points, st.session_state.Rosalia_points, st.session_state.Chin_points],
+    'Points': [
+        st.session_state.Colita_points,
+        st.session_state.Xav_points,
+        st.session_state.Rosalia_points,
+        st.session_state.Chin_points
+    ],
     'Laveur': ['Colita', 'Xav', 'Rosalia', 'Chin']
 })
 
-
-# --- VALIDATION TACHES ---
+#--------------------------------------------------------------
+# VALIDATION TÂCHES (crédite points + replanifie si récurrente)
+#--------------------------------------------------------------
 validerTacheBouton = tab1.button("Valider les tâches effectuées", type="primary")
 
 if validerTacheBouton:
@@ -193,8 +211,7 @@ if validerTacheBouton:
     if not indices_a_valider:
         st.info("Aucune tâche cochée.")
     else:
-        # On repart de taches triées; il faut retrouver les index réels dans session_state.
-        # Astuce: on reconstruit un mapping (valeurs triées -> index originaux) via une DataFrame source.
+        # Re-mapping index vue triée -> index originel en session_state
         source = pd.DataFrame({
             'Tâches': st.session_state['taches'],
             'Échéance (jours)': st.session_state['echeances'],
@@ -204,12 +221,10 @@ if validerTacheBouton:
             'Récurrence (jours)': st.session_state['recurrences'],
         })
         source['Jours restants'] = (pd.to_datetime(source['Date due']) - today).dt.days
-        source_sorted = source.sort_values(['Jours restants', 'Points'], ascending=[True, False]).reset_index()  # garde 'index' d'origine
+        source_sorted = source.sort_values(['Jours restants', 'Points'], ascending=[True, False]).reset_index()
 
-        # Pour chaque ligne cochée dans l'éditeur (index trié), retrouve l'index original
         idx_originaux = [int(source_sorted.loc[i, 'index']) for i in indices_a_valider]
 
-        # Traiter en ordre décroissant des index originaux si on supprime
         for idx in sorted(idx_originaux, reverse=True):
             pointsGagnes = st.session_state['points'][idx]
 
@@ -233,14 +248,13 @@ if validerTacheBouton:
             # RÉCURRENCE : replanifier plutôt que supprimer
             rec = int(st.session_state['recurrences'][idx])
             if rec > 0:
-                # nouvelle date due = ancienne date due + rec jours (ou max(aujourd'hui, date_due) + rec)
                 old_due = pd.Timestamp(st.session_state['due_dates'][idx])
-                base = max(old_due, today)  # si la tâche était en retard, on repart d'aujourd'hui
+                base = max(old_due, today)
                 new_due = (base + pd.Timedelta(days=rec)).date()
 
                 st.session_state['due_dates'][idx] = new_due
-                st.session_state['echeances'][idx] = rec  # l’échéance future = intervalle de récurrence
-                st.session_state['status'][idx] = False   # décocher pour la prochaine occurrence
+                st.session_state['echeances'][idx] = rec
+                st.session_state['status'][idx] = False
             else:
                 # PAS DE RÉCURRENCE : suppression définitive
                 st.session_state['taches'].pop(idx)
@@ -253,24 +267,22 @@ if validerTacheBouton:
         st.success("Tâche(s) validée(s) !")
         st.rerun()
 
-
-
-# --- BOUTON SUPPRIMER ---
+#--------------------------------------------------------------
+# BOUTON SUPPRIMER (tâches en cours)
+#--------------------------------------------------------------
 supprimerTachesBtn = tab1.button("Supprimer les tâches sélectionnées", type="secondary")
 
 if supprimerTachesBtn:
     if len(tableauTaches) == 0:
         tab1.warning("Aucune tâche à supprimer n'est sélectionnée.")
     else:
-        # Liste des cases cochées (côté tableau trié)
         sup_list = tableauTaches["Supprimer"].fillna(False).astype(bool).tolist()
         idx_sorted_view = [i for i, s in enumerate(sup_list) if s]
 
         if not idx_sorted_view:
             tab1.warning("Aucune tâche à supprimer n'est sélectionnée.")
         else:
-            # --- Retrouver les index ORIGINELS dans session_state malgré le tri ---
-            today = pd.Timestamp.today().normalize()
+            # Re-mapping index vue -> index originel
             source = pd.DataFrame({
                 'Tâches': st.session_state['taches'],
                 'Échéance (jours)': st.session_state['echeances'],
@@ -280,15 +292,10 @@ if supprimerTachesBtn:
                 'Récurrence (jours)': st.session_state['recurrences'],
             })
             source['Jours restants'] = (pd.to_datetime(source['Date due']) - today).dt.days
+            source_sorted = source.sort_values(['Jours restants', 'Points'], ascending=[True, False]).reset_index()
 
-            source_sorted = source.sort_values(
-                ['Jours restants', 'Points'], ascending=[True, False]
-            ).reset_index()  # garde 'index' = index original
-
-            # map des lignes cochées (dans la vue triée) vers les index originels
             idx_originaux = [int(source_sorted.loc[i, 'index']) for i in idx_sorted_view]
 
-            # --- Supprimer proprement dans session_state (ordre décroissant) ---
             for idx in sorted(idx_originaux, reverse=True):
                 st.session_state['taches'].pop(idx)
                 st.session_state['echeances'].pop(idx)
@@ -300,25 +307,27 @@ if supprimerTachesBtn:
             tab1.success("Tâche(s) supprimée(s) avec succès.")
             st.rerun()
 
-
-#LEADERBOARD
-tab3.bar_chart(data=points,
+#--------------------------------------------------------------
+# LEADERBOARD
+#--------------------------------------------------------------
+tab3.bar_chart(
+    data=points,
     x='Laveur',
     y='Points',
-    width=0,
-    height=0,
-    use_container_width=True)
+    use_container_width=True
+)
 
-# --- DATAFRAME HISTORIQUE (reconstruit à chaque run) ---
+#--------------------------------------------------------------
+# HISTORIQUE (avec suppression + retrait de points)
+#--------------------------------------------------------------
 historique = pd.DataFrame({
     'Tâches': st.session_state['historiqueDf'],
     'Date': st.session_state['dateDf'],
     'Points gagnés': st.session_state['pointsGagnesDf'],
     'Laveur': st.session_state['laveurDf'],
-    'Supprimer': st.session_state['supprimerDf'],
 })
 
-# Ajouter la colonne "Supprimer" en booléen pur, sans NaN
+# Ajouter la colonne "Supprimer" en booléen pur
 historique['Supprimer'] = pd.Series([False] * len(historique), dtype=bool)
 
 tableauHistorique = tab2.data_editor(
@@ -327,10 +336,14 @@ tableauHistorique = tab2.data_editor(
     height="auto",
     hide_index=True,
     num_rows="fixed",
-    # On rend TOUT éditable, puis on désactive les colonnes sauf "Supprimer"
-    disabled=['Tâches', 'Date', 'Points gagnés', 'Laveur', 'Récupération'],
+    # On désactive les colonnes de données, pas "Supprimer"
+    disabled=['Tâches', 'Date', 'Points gagnés', 'Laveur'],
     column_config={
-        "Supprimer": st.column_config.CheckboxColumn(
+        "Tâches": cc.TextColumn("Tâches", disable_html_escaping=True),
+        "Date": cc.TextColumn("Date", disable_html_escaping=True),
+        "Points gagnés": cc.NumberColumn("Points gagnés"),
+        "Laveur": cc.TextColumn("Laveur", disable_html_escaping=True),
+        "Supprimer": cc.CheckboxColumn(
             "Supprimer",
             help="Cocher pour retirer la ligne et reprendre les points",
             default=False
@@ -339,24 +352,18 @@ tableauHistorique = tab2.data_editor(
     key="editor_historique"
 )
 
-# --- BOUTON SUPPRIMER ---
-supprimerHistoriqueBtn = tab2.button(
-    "Supprimer les tâches cochées de l'historique",
-    type="secondary"
-)
+supprimerHistoriqueBtn = tab2.button("Supprimer les tâches cochées de l'historique", type="secondary")
 
 if supprimerHistoriqueBtn:
     if len(tableauHistorique) == 0:
         tab2.warning("Aucune tâche à supprimer n'est sélectionnée.")
     else:
-        # Sécurise: convertir/compléter en bool (au cas où)
         sup_list = (
             tableauHistorique['Supprimer']
             .fillna(False)
             .astype(bool)
             .tolist()
         )
-
         idx_to_delete = [i for i, s in enumerate(sup_list) if s]
 
         if not idx_to_delete:
@@ -376,7 +383,7 @@ if supprimerHistoriqueBtn:
                 elif laveur == "Chin":
                     st.session_state.Chin_points -= pts
 
-                # (Optionnel) empêcher négatifs
+                # Empêcher négatifs (optionnel)
                 st.session_state.Xav_points = max(0, st.session_state.Xav_points)
                 st.session_state.Rosalia_points = max(0, st.session_state.Rosalia_points)
                 st.session_state.Colita_points = max(0, st.session_state.Colita_points)
@@ -387,7 +394,6 @@ if supprimerHistoriqueBtn:
                 st.session_state.dateDf.pop(idx)
                 st.session_state.pointsGagnesDf.pop(idx)
                 st.session_state.laveurDf.pop(idx)
-                st.session_state.supprimerDf.pop(idx)
 
             tab2.success("Ligne(s) supprimée(s) et points repris avec succès.")
             st.rerun()
