@@ -3,72 +3,93 @@ import pandas as pd
 import datetime as dt
 import math
 from streamlit import column_config as cc
-import html as py_html  # pour échapper le texte quand on rend du HTML brut
+import html as py_html  # échappement pour HTML brut
 
 # ============================================================
-# MODE COMPAT iOS : bypasse TOUT rendu Markdown/GFM & labels
+# MODE COMPAT iOS : bypasse TOUT Markdown/GFM & labels
 # ============================================================
-st.sidebar.checkbox("Mode compat iOS (désactiver Markdown/labels)", key="compat_ios", value=False)
+if "compat_ios" not in st.session_state:
+    # ON par défaut pour éviter le crash au 1er rendu sur Safari iOS
+    st.session_state.compat_ios = True
 
 def plain_text(s: str):
-    """Affiche du texte brut sans passer par Markdown/GFM."""
+    """Affiche du texte brut (HTML échappé), sans Markdown/GFM."""
     safe = py_html.escape(s)
-    # st.html existe sur Streamlit >= 1.36 ; sinon fallback en unsafe_allow_html
-    if hasattr(st, "html"):
+    if hasattr(st, "html"):  # Streamlit >= 1.36
         st.html(f"<div>{safe}</div>")
     else:
         st.markdown(f"<div>{safe}</div>", unsafe_allow_html=True)
 
 def md(s: str):
-    """Markdown normal, mais bascule en texte brut si compat iOS activé."""
+    """Markdown normal, ou texte brut si compat iOS."""
     if st.session_state.get("compat_ios"):
         plain_text(s)
     else:
         st.markdown(s)
 
 def ui_success(msg: str):
-    if st.session_state.get("compat_ios"):
-        plain_text("✅ " + msg)
-    else:
-        st.success(msg)
+    plain_text("✅ " + msg) if st.session_state.get("compat_ios") else st.success(msg)
 
 def ui_info(msg: str):
-    if st.session_state.get("compat_ios"):
-        plain_text("ℹ️ " + msg)
-    else:
-        st.info(msg)
+    plain_text("ℹ️ " + msg) if st.session_state.get("compat_ios") else st.info(msg)
 
 def ui_warning(msg: str):
-    if st.session_state.get("compat_ios"):
-        plain_text("⚠️ " + msg)
-    else:
-        st.warning(msg)
+    plain_text("⚠️ " + msg) if st.session_state.get("compat_ios") else st.warning(msg)
 
 def ui_error(msg: str):
-    if st.session_state.get("compat_ios"):
-        plain_text("❌ " + msg)
-    else:
-        st.error(msg)
+    plain_text("❌ " + msg) if st.session_state.get("compat_ios") else st.error(msg)
 
 # -------- Wrappers de widgets sans labels (compat iOS) --------
 def sb_selectbox(label_text: str, options, key=None, **kwargs):
     if st.session_state.get("compat_ios"):
-        plain_text(label_text)                               # label affiché séparément (HTML brut)
-        return st.selectbox("\u00A0", options, key=key, **kwargs)  # label du widget = espace insécable
+        plain_text(label_text)
+        return st.selectbox("\u00A0", options, key=key, **kwargs)
     else:
         return st.selectbox(label_text, options, key=key, **kwargs)
 
 def sb_button(label_text: str, key=None, **kwargs):
-    """Bouton dont le label est rendu à côté (HTML brut) en mode compat."""
     if st.session_state.get("compat_ios"):
         c1, c2 = st.columns([1, 6])
         with c1:
-            clicked = st.button("\u00A0", key=key, **kwargs)  # bouton visuellement “vide”
+            clicked = st.button("\u00A0", key=key, **kwargs)
         with c2:
-            plain_text(label_text)                            # texte à côté
+            plain_text(label_text)
         return clicked
     else:
         return st.button(label_text, key=key, **kwargs)
+
+def sb_text_input(label_text: str, key=None, **kwargs):
+    if st.session_state.get("compat_ios"):
+        plain_text(label_text)
+        return st.text_input("\u00A0", key=key, **kwargs)
+    else:
+        return st.text_input(label_text, key=key, **kwargs)
+
+def sb_number_input(label_text: str, key=None, **kwargs):
+    if st.session_state.get("compat_ios"):
+        plain_text(label_text)
+        return st.number_input("\u00A0", key=key, **kwargs)
+    else:
+        return st.number_input(label_text, key=key, **kwargs)
+
+def sb_checkbox(label_text: str, key=None, **kwargs):
+    if st.session_state.get("compat_ios"):
+        plain_text(label_text)
+        return st.checkbox("\u00A0", key=key, **kwargs)
+    else:
+        return st.checkbox(label_text, key=key, **kwargs)
+
+def sb_date_input(label_text: str, key=None, **kwargs):
+    if st.session_state.get("compat_ios"):
+        plain_text(label_text)
+        return st.date_input("\u00A0", key=key, **kwargs)
+    else:
+        return st.date_input(label_text, key=key, **kwargs)
+
+# Sidebar: libellé de la checkbox en HTML brut (pas Markdown)
+with st.sidebar:
+    plain_text("Mode compat iOS (désactiver Markdown/labels)")
+    st.checkbox("\u00A0", key="compat_ios", value=st.session_state.compat_ios)
 
 # ============================================================
 # CONSTANTES / ÉTAT
@@ -104,7 +125,7 @@ if 'pointsGagnesDf' not in st.session_state:
 if 'laveurDf' not in st.session_state:
     st.session_state.laveurDf = []
 
-# DATES D'ÉCHÉANCE (une date par tâche)
+# DATES D'ÉCHÉANCE
 if 'due_dates' not in st.session_state:
     today0 = pd.Timestamp.today().normalize()
     st.session_state.due_dates = [(today0 + pd.Timedelta(days=d)).date()
@@ -116,34 +137,33 @@ if 'due_dates' not in st.session_state:
 md("# 1100 Gilford clean up crew")
 
 # ============================================================
-# POPUP AJOUTER UNE TÂCHE (title neutre en compat iOS)
+# POPUP AJOUTER UNE TÂCHE (titre neutre en compat)
 # ============================================================
 dialog_title = " " if st.session_state.get("compat_ios") else TITLE
 
 @st.dialog(dialog_title)
 def popup():
-    nomTache = st.text_input("Nom de la tâche")
-    echeanceTache = st.number_input("Échéance (en jours)", min_value=0, max_value=30, value=1, step=1)
-    nbPointsTache = st.number_input("Nombre de points", min_value=0, max_value=100, value=10, step=1)
+    nomTache = sb_text_input("Nom de la tâche")
+    echeanceTache = sb_number_input("Échéance (en jours)", min_value=0, max_value=30, value=1, step=1)
+    nbPointsTache = sb_number_input("Nombre de points", min_value=0, max_value=100, value=10, step=1)
 
-    recurrence = st.checkbox("Récurrence")
+    recurrence = sb_checkbox("Récurrence")
     if recurrence:
-        nbRecurrence = st.number_input("Récurrence (en jours)", min_value=1, max_value=30, value=7, step=1)
+        nbRecurrence = sb_number_input("Récurrence (en jours)", min_value=1, max_value=30, value=7, step=1)
         today_date = pd.Timestamp.today().normalize().date()
-        start_date = st.date_input("Date de départ (première occurrence)", value=today_date, format="DD/MM/YYYY")
+        start_date = sb_date_input("Date de départ (première occurrence)", value=today_date, format="DD/MM/YYYY")
     else:
         nbRecurrence = 0
         start_date = None
 
     c1, c2 = st.columns(2)
     with c1:
-        validerBouton = st.button("Valider", type="primary")
+        validerBouton = sb_button("Valider", key="btn_popup_valider", type="primary")
     with c2:
-        annulerBouton = st.button("Annuler", type="secondary")
+        _ = sb_button("Annuler", key="btn_popup_annuler", type="secondary")
 
     if validerBouton:
         today = pd.Timestamp.today().normalize().date()
-        # Calcul de la date due et de l'échéance visible
         if nbRecurrence > 0 and start_date is not None:
             due = start_date
             if due < today:
@@ -156,7 +176,6 @@ def popup():
             due_date = (today + dt.timedelta(days=int(echeanceTache)))
             echeance_effective = int(echeanceTache)
 
-        # MAJ état
         st.session_state.taches.append(nomTache)
         st.session_state.echeances.append(int(echeance_effective))
         st.session_state.points.append(int(nbPointsTache))
@@ -171,10 +190,10 @@ def popup():
 # RENDUS DES 3 PAGES (sans tabs en compat iOS)
 # ============================================================
 def render_page_taches():
-    # Identification (label bypass)
+    # Identification
     laveur = sb_selectbox("Qui es-tu ?", ["Xav", "Rosalia", "Colita", "Chin"], key="whoami")
 
-    # Ajouter une tâche (label bypass)
+    # Bouton Ajouter une tâche
     if sb_button("Ajouter une tâche", key="btn_add_task", type="primary"):
         popup()
 
@@ -203,13 +222,13 @@ def render_page_taches():
             "Jours restants": cc.NumberColumn("Jours restants"),
             "Récurrence (jours)": cc.NumberColumn("Récurrence (jours)"),
             "Points": cc.NumberColumn("Points"),
-            "Statut": cc.CheckboxColumn("Statut", help="Coche si la tâche est faite"),
-            "Supprimer": cc.CheckboxColumn("Supprimer", help="Cocher pour supprimer définitivement la tâche"),
+            "Statut": cc.CheckboxColumn("Statut"),
+            "Supprimer": cc.CheckboxColumn("Supprimer"),
         },
         key="editor_taches"
     )
 
-    # Bouton SUPPRIMER (label bypass)
+    # Bouton SUPPRIMER
     if sb_button("Supprimer les tâches sélectionnées", key="btn_del_tasks", type="secondary"):
         sup_list = tableauTaches["Supprimer"].fillna(False).astype(bool).tolist()
         idx_sorted_view = [i for i, s in enumerate(sup_list) if s]
@@ -233,7 +252,7 @@ def render_page_taches():
             ui_success("Tâche(s) supprimée(s) avec succès.")
             st.rerun()
 
-    # Bouton VALIDER (label bypass)
+    # Bouton VALIDER
     if sb_button("Valider les tâches effectuées", key="btn_validate_tasks", type="primary"):
         statuts = tableauTaches["Statut"].tolist()
         indices_a_valider = [i for i, done in enumerate(statuts) if done]
@@ -301,7 +320,7 @@ def render_page_historique():
             "Date": cc.TextColumn("Date"),
             "Points gagnés": cc.NumberColumn("Points gagnés"),
             "Laveur": cc.TextColumn("Laveur"),
-            "Supprimer": cc.CheckboxColumn("Supprimer", help="Cocher pour retirer la ligne et reprendre les points"),
+            "Supprimer": cc.CheckboxColumn("Supprimer"),
         },
         key="editor_historique"
     )
@@ -340,7 +359,7 @@ def render_page_leaderboard():
 # ROUTAGE : tabs normaux (desktop) vs sélecteur (compat iOS)
 # ============================================================
 if st.session_state.get("compat_ios"):
-    plain_text("## Navigation")
+    plain_text("Navigation")
     page = st.selectbox("\u00A0", ["Tâches", "Historique", "Leaderboard"], index=0, key="page_select")
     if page == "Tâches":
         render_page_taches()
