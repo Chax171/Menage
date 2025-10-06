@@ -175,7 +175,7 @@ tableauTaches = tab1.data_editor(
     disabled=["Tâches", "Jours restants", "Récurrence (jours)", "Points"],
     column_config={
         # Texte brut (pas de Markdown/HTML)
-        "Tâches": cc.TextColumn("Tâches", disable_html_escaping=True),
+        "Tâches": cc.TextColumn("Tâches"),
         "Jours restants": cc.NumberColumn("Jours restants"),
         "Récurrence (jours)": cc.NumberColumn("Récurrence (jours)"),
         "Points": cc.NumberColumn("Points"),
@@ -339,10 +339,10 @@ tableauHistorique = tab2.data_editor(
     # On désactive les colonnes de données, pas "Supprimer"
     disabled=['Tâches', 'Date', 'Points gagnés', 'Laveur'],
     column_config={
-        "Tâches": cc.TextColumn("Tâches", disable_html_escaping=True),
-        "Date": cc.TextColumn("Date", disable_html_escaping=True),
+        "Tâches": cc.TextColumn("Tâches"),
+        "Date": cc.TextColumn("Date"),
         "Points gagnés": cc.NumberColumn("Points gagnés"),
-        "Laveur": cc.TextColumn("Laveur", disable_html_escaping=True),
+        "Laveur": cc.TextColumn("Laveur"),
         "Supprimer": cc.CheckboxColumn(
             "Supprimer",
             help="Cocher pour retirer la ligne et reprendre les points",
